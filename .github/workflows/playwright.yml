@@ -66,7 +66,7 @@ jobs:
 
       # Slack reporting
       SEND_REPORT_SLACK: ${{ github.event.inputs.send_slack_report }}
-      CHANNEL_NAME: ${{ vars.CHANNEL_NAME || 'pwgpx' }}
+      CHANNEL_NAME: ${{ vars.CHANNEL_NAME || 'groovepacker-reporter' }}
       SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
       SLACK_BOT_USER_OAUTH_TOKEN: ${{ secrets.SLACK_BOT_USER_OAUTH_TOKEN }}
 
