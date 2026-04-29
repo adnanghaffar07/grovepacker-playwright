@@ -7,7 +7,7 @@
     "tests:all": "npx playwright test Tests/Test",
     "test": "npx playwright test Tests/Test/GPX",
     "test:v2": "npx playwright test Tests/Test/GPX/03",
-    "test:recount": "npx playwright test Tests/Pages/GPX/07",
+    "test:recount": "npx playwright test Tests/Test/GPX/07",
     "legacy": "npx playwright test Tests/Test/LEGACY",
     "subscription": "npx playwright test Tests/Test/LEGACY/06-SUBSCRIPTION-LEGACY",
     "report:show": "npx playwright show-report"

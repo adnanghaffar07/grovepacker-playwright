@@ -1,0 +1,153 @@
+name: Playwright Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which test suite to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - gpx
+          - gpx-v2
+          - legacy
+          - subscription
+          - recount
+          - login
+      disabled_tests:
+        description: "Comma-separated test ids to skip (maps to DISABLED_TEST_CASES, e.g. login-2,scan-verify-3)"
+        required: false
+        default: ""
+        type: string
+      send_slack_report:
+        description: "Post results to Slack"
+        required: true
+        default: false
+        type: boolean
+      workers:
+        description: "Parallel workers (overrides playwright.config.ts)"
+        required: false
+        default: "3"
+        type: string
+      debug:
+        description: "Enable Playwright debug logs"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: playwright-${{ github.ref }}-${{ github.event.inputs.suite }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Run ${{ github.event.inputs.suite }} suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      # App configuration (non-secret defaults can be overridden by repo Variables)
+      BASE_URL: ${{ vars.BASE_URL || 'https://app.groovepacker.com' }}
+      TENANT_URL: ${{ vars.TENANT_URL || 'https://admintools.groovepacker.com' }}
+      UPDATE_API_URL1: ${{ vars.UPDATE_API_URL1 || 'https://abubakar.groovepackerapi.com/orders/update_order_list.json' }}
+
+      # Credentials & accounts (configure under repo "Settings -> Secrets and variables -> Actions")
+      VALID_USERNAME: ${{ secrets.VALID_USERNAME }}
+      VALID_PASSWORD: ${{ secrets.VALID_PASSWORD }}
+      VALID_USER_ACCOUNT: ${{ secrets.VALID_USER_ACCOUNT }}
+      VALID_USER_ACCOUNT_2: ${{ secrets.VALID_USER_ACCOUNT_2 }}
+      VALID_USER_ACCOUNT_3: ${{ secrets.VALID_USER_ACCOUNT_3 }}
+      VALID_USER_ACCOUNT_4: ${{ secrets.VALID_USER_ACCOUNT_4 }}
+      VALID_USER_ACCOUNT_5: ${{ secrets.VALID_USER_ACCOUNT_5 }}
+      RESET_EMAIL: ${{ secrets.RESET_EMAIL }}
+      API_TOKEN: ${{ secrets.API_TOKEN }}
+
+      # Slack reporting
+      SEND_REPORT_SLACK: ${{ github.event.inputs.send_slack_report }}
+      CHANNEL_NAME: ${{ vars.CHANNEL_NAME || 'pwgpx' }}
+      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+      SLACK_BOT_USER_OAUTH_TOKEN: ${{ secrets.SLACK_BOT_USER_OAUTH_TOKEN }}
+
+      # Test selection
+      DISABLED_TEST_CASES: ${{ github.event.inputs.disabled_tests }}
+
+      # Debug
+      DEBUG: ${{ github.event.inputs.debug == 'true' && 'pw:api' || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci || npm install
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json', 'package.json') }}
+
+      - name: Install Playwright browsers + system deps
+        run: npx playwright install --with-deps chromium
+
+      - name: Install xvfb (config runs headed)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Materialize Utils/data.json from secret
+        env:
+          DATA_JSON: ${{ secrets.DATA_JSON }}
+        run: |
+          if [ -z "${DATA_JSON}" ]; then
+            echo "DATA_JSON secret not set; falling back to Utils/data.example.json"
+            cp Utils/data.example.json Utils/data.json
+          else
+            printf '%s' "${DATA_JSON}" > Utils/data.json
+          fi
+          echo "Wrote $(wc -c < Utils/data.json) bytes to Utils/data.json"
+
+      - name: Resolve test path for "${{ github.event.inputs.suite }}"
+        id: suite
+        run: |
+          case "${{ github.event.inputs.suite }}" in
+            all)          echo "path=Tests/Test" >> "$GITHUB_OUTPUT" ;;
+            gpx)          echo "path=Tests/Test/GPX" >> "$GITHUB_OUTPUT" ;;
+            gpx-v2)       echo "path=Tests/Test/GPX/03-POST-SCANNING-GPX.spec.ts" >> "$GITHUB_OUTPUT" ;;
+            legacy)       echo "path=Tests/Test/LEGACY" >> "$GITHUB_OUTPUT" ;;
+            subscription) echo "path=Tests/Test/LEGACY/06-SUBSCRIPTION-LEGACY.spec.ts" >> "$GITHUB_OUTPUT" ;;
+            recount)      echo "path=Tests/Test/GPX/07-RECEIVE-RECOUNT.spec.ts" >> "$GITHUB_OUTPUT" ;;
+            login)        echo "path=Tests/Test/GPX/01-LOGIN.spec.ts" >> "$GITHUB_OUTPUT" ;;
+            *)            echo "Unknown suite"; exit 1 ;;
+          esac
+
+      - name: Run Playwright tests
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            npx playwright test "${{ steps.suite.outputs.path }}" \
+              --workers=${{ github.event.inputs.workers }}
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.event.inputs.suite }}-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload test results (traces, screenshots, videos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.event.inputs.suite }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
