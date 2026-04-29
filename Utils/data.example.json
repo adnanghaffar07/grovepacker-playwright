@@ -1,0 +1,13 @@
+{
+  "tokens": {
+    "postscangpx": "",
+    "postscanprotected": "",
+    "expo2Protected": ""
+  },
+  "tenant": {
+    "name": "",
+    "password": "",
+    "userName": ""
+  },
+  "barcodeTextToFillInRecountInput": ""
+}
