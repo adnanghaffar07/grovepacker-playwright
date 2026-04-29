@@ -37,39 +37,9 @@ export async function generateCustomLayoutSimpleMeta(
   //   }
   // }
 
-  //   GPX: app.groovepacker.com , https://gpexpopipeline.vercel.app/
-  // Legacy:  admintools.groovepacker.com, [accountName].groovepacker.com
-  // Prod is: app.groovepacker.com
-  // QA: https://qa.groovepacker.com/, https://gpexpopipeline.vercel.app/ (edited)
-  let environment = '';
-  const regex = /https?:\/\/([^\/\.]+)\./;
-  const checkURL = process.env.BASE_URL;
   let flakyTestCases;
   if (summaryResults.flaky !== undefined) {
     flakyTestCases = summaryResults.flaky;
-  }
-  const checkSlug = process.env.BITBUCKET_REPO_SLUG;
-  if (checkURL && checkSlug) {
-    const match = checkURL.match(regex);
-    if (match) {
-      const extractedString = match[1];
-      if (extractedString === 'app' && checkSlug !== 'groovepacker') {
-        environment = `GPX - Production ${checkURL}`;
-      } else if (
-        extractedString === 'gpexpopipeline' ||
-        (extractedString === 'qa' && checkSlug !== 'groovepacker')
-      ) {
-        environment = `QA - ${checkURL}`;
-      } else if (extractedString === 'app' && checkSlug === 'groovepacker') {
-        environment = `Legacy - ${checkURL}`;
-      } else {
-        environment = 'Unable to identify';
-      }
-    } else {
-      environment = 'Unable to identify';
-    }
-  } else {
-    environment = 'Unable to identify';
   }
   return [
     {
@@ -77,20 +47,6 @@ export async function generateCustomLayoutSimpleMeta(
       text: {
         type: 'mrkdwn',
         text: '*Playwright Automation Report of Groove Packer*',
-      },
-    },
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `<https://bitbucket.org/${process.env.BITBUCKET_REPO_FULL_NAME}/pipelines/results/${process.env.BITBUCKET_BUILD_NUMBER} | Pipeline #${process.env.BITBUCKET_BUILD_NUMBER}>`,
-      },
-    },
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `Environment:- ${environment}`,
       },
     },
     {
